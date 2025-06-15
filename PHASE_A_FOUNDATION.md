@@ -1,0 +1,114 @@
+### 🏗️ PHASE A: Foundation & Dependencies (Start Here)
+1. **Environment Setup & Project Initialization**
+   - Install Node.js (latest LTS, e.g., v20.x.x or higher), Git (latest stable), and VS Code (latest stable) with recommended extensions (e.g., ESLint, Prettier, Prisma).
+   - Initialize a new Next.js project (latest stable version) using `npx create-next-app@latest --typescript --tailwind --eslint .` in the project root.
+   -   Ensure "App Router" is selected during Next.js setup.
+   -   Configure ESLint with recommended rules (`eslint-config-next`) and Prettier for consistent code formatting. Set up format-on-save in VS Code.
+   -   Use only essential dependencies. Explicitly avoid: PWA packages (e.g., `next-pwa`), Redis clients (e.g., `ioredis`), excessive analytics/tracking packages beyond GTM/Meta Pixel, complex image optimization libraries (rely on Next.js built-in `next/image`), unnecessary font packages (use system fonts or Google Fonts loaded efficiently), and any UI libraries that introduce dark/light mode or theme switching capabilities.
+   - Set up a Git repository: `git init`, create an initial commit.
+   -   Create a comprehensive `.gitignore` file including `node_modules/`, `.env`, `.env.local`, `.next/`, `out/`, `uploads/` (if storing locally and not in cloud), `*.log`, `npm-debug.log*`, `yarn-debug.log*`, `yarn-error.log*`.
+   - Document all setup steps, chosen versions, and initial configuration choices in a `README.md` file for future reference and team onboarding. Include sections for "Getting Started," "Available Scripts," and "Environment Variables."
+2. **Database Configuration**
+   - Create a MySQL database named `pcwv2` (e.g., using XAMPP/phpMyAdmin or MySQL CLI: `CREATE DATABASE pcwv2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`). Ensure it's not `pcwo`.
+   - Initialize Prisma: `npx prisma init --datasource-provider mysql`.
+   -   Configure the `DATABASE_URL` in `.env` (e.g., `DATABASE_URL="mysql://USER:PASSWORD@HOST:PORT/pcwv2"`).
+   -   Run an initial migration to establish Prisma connection and create the `prisma/migrations` folder: `npx prisma migrate dev --name init`.
+   - Optimize MySQL settings for development and production (consult MySQL documentation for `my.cnf` or `my.ini`):
+     -   `innodb_buffer_pool_size`: Adjust based on available RAM (e.g., 50-70% of dedicated DB server RAM).
+     -   `max_connections`: Set appropriately for expected load (e.g., 100-500).
+     -   `query_cache_type` (if applicable, often disabled in newer MySQL versions), `query_cache_size`.
+     -   Other settings like `tmp_table_size`, `max_heap_table_size`.
+   - Document database setup, Prisma initialization steps, and key optimization parameters considered.
+3. **Environment Variables**
+   - Set up a `.env.local` file (gitignored) for local development overrides and a `.env.example` file (committed to Git) as a template.
+   - Define essential variables:
+     -   `DATABASE_URL="mysql://USER:PASSWORD@HOST:PORT/pcwv2"`
+     -   `JWT_SECRET="YOUR_STRONG_JWT_SECRET_KEY"` (generate a long, random string)
+     -   `ADMIN_REGISTRATION_CODE="YOUR_SECRET_ADMIN_REG_CODE"` (for initial admin setup)
+     -   `UPLOADS_DIR="/uploads"` (relative to public folder or an absolute path if served differently)
+     -   `NEXT_PUBLIC_WHATSAPP_NUMBER="YOUR_BUSINESS_WHATSAPP_NUMBER_WITH_COUNTRY_CODE"`
+     -   `NEXT_PUBLIC_SITE_URL="http://localhost:3000"` (for development, update for production)
+     -   `NEXT_PUBLIC_GTM_ID=""` (Google Tag Manager ID, to be filled later)
+     -   `NEXT_PUBLIC_META_PIXEL_ID=""` (Meta Pixel ID, to be filled later)
+   - Document the purpose, format, and example values for each environment variable in the `README.md` or a dedicated `ENVIRONMENT_VARIABLES.md`.
+4. **Project Directory Structure**
+   - Create a logical and scalable folder structure within `src/`:
+     -   `src/app/`: Next.js App Router directory.
+         -   `(admin)/`: Route group for admin panel (e.g., `(admin)/dashboard`, `(admin)/products`).
+             -   `layout.tsx`: Admin-specific layout.
+             -   `page.tsx`: Specific admin pages.
+         -   `(public)/`: Route group for public website (e.g., `(public)/`, `(public)/build`, `(public)/cart`).
+             -   `layout.tsx`: Public-specific layout.
+             -   `page.tsx`: Specific public pages.
+         -   `api/`: Route handlers for backend logic (e.g., `api/products/[id]/route.ts`).
+         -   `global-error.tsx`: Custom global error handling.
+         -   `not-found.tsx`: Custom 404 page.
+     -   `src/components/`: Reusable UI components.
+         -   `admin/`: Components specific to the Admin CMS (e.g., `ProductForm.tsx`, `AdminSidebar.tsx`).
+         -   `public/`: Components specific to the Public Website (e.g., `ProductCard.tsx`, `PCBuilderStep.tsx`).
+         -   `ui/`: Generic, shared UI elements (e.g., `Button.tsx`, `Input.tsx`, `Modal.tsx`).
+     -   `src/lib/`: Utility functions, helper scripts, third-party integrations.
+         -   `prisma.ts`: Prisma client instance.
+         -   `auth.ts`: Authentication helpers (JWT, password hashing).
+         -   `utils.ts`: General utility functions.
+         -   `validators/`: Zod schema definitions.
+     -   `src/hooks/`: Custom React hooks (e.g., `useCart.ts`, `useDebounce.ts`).
+     -   `src/styles/`: Global styles, Tailwind CSS base configuration (`globals.css`).
+     -   `src/types/`: TypeScript type definitions and interfaces (e.g., `product.ts`, `order.ts`).
+     -   `prisma/`: Prisma schema (`schema.prisma`), migrations, and seed script (`seed.ts`).
+     -   `public/`: Static assets (images, fonts if self-hosted).
+         -   `uploads/`: Directory for user-uploaded files (e.g., product images), if not using a cloud storage service. Ensure this is writable by the server process.
+   - Document the structure, purpose of each main folder, and conventions for naming and organizing files within them.
+5. **Database Schema & Migration (Prisma)**
+   - Design a normalized Prisma schema (`prisma/schema.prisma`) for all entities. Key models include:
+     -   `AdminUser`: `id`, `email` (unique), `password` (hashed), `name`, `registrationCodeUsed`, `createdAt`, `updatedAt`.
+     -   `Product`: `id`, `title`, `slug` (unique), `description` (rich text/HTML), `price` (Decimal), `sku` (unique), `stock` (Int), `images` (Json, array of URLs/paths), `status` (`DRAFT`, `PUBLISHED`, `ARCHIVED`), `brandId` (relation to `Brand`), `categoryId` (relation to `Category`), `metaTitle`, `metaDescription`, `createdAt`, `updatedAt`.
+         -   `specifications` (Json, key-value pairs for various specs like CPU speed, RAM size, etc.).
+     -   `Brand`: `id`, `name` (unique), `slug` (unique), `logoUrl`, `description`.
+     -   `Category`: `id`, `name` (unique), `slug` (unique), `description`, `parentId` (self-relation for hierarchy), `image`. (Used for Shopify-like collections).
+     -   `Tag`: `id`, `name` (unique), `slug` (unique). (Also used for Shopify-like collections).
+     -   `ProductTag`: Join table for many-to-many between `Product` and `Tag`.
+     -   `CompatibilityRule`: Defines direct compatibility between two specific products or product types/categories.
+         -   `id`, `productAId`, `productBId` (relations to `Product`).
+         -   Alternatively, more abstract: `componentTypeA` (e.g., 'MOTHERBOARD'), `componentAttributeA` (e.g., 'socket_AM4'), `componentTypeB` (e.g., 'CPU'), `componentAttributeB` (e.g., 'socket_AM4'), `relation` ('REQUIRES', 'CONFLICTS'). This requires careful design for the PC builder logic. For simplicity, start with direct product-to-product compatibility links managed by admin.
+         -   Consider a simpler `ProductCompatibility` model: `productId` (FK to Product), `compatibleWithProductId` (FK to Product). This creates many-to-many relationships. Admin will manage these links.
+     -   `Order`: `id`, `orderNumber` (unique), `customerDetails` (Json: name, contact for WhatsApp), `items` (Json: array of product snapshots - title, price, quantity, sku), `totalAmount` (Decimal), `status` (`PENDING_WHATSAPP`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`, `CANCELLED`), `whatsAppMessageContent` (Text), `createdAt`, `updatedAt`.
+     -   `Banner`: `id`, `title`, `imageUrl`, `linkUrl`, `isActive`, `position` (e.g., 'homepage_hero', 'sidebar'), `startDate`, `endDate`.
+     -   `Page`: `id`, `title`, `slug` (unique), `content` (HTML/Markdown from WYSIWYG), `metaTitle`, `metaDescription`, `isPublished`.
+     -   `NavigationMenu`: `id`, `name` (e.g., 'Main Header', 'Footer Links').
+     -   `NavigationItem`: `id`, `label`, `linkUrl`, `menuId` (relation to `NavigationMenu`), `parentId` (self-relation for hierarchy), `order` (Int).
+   - Include clear relations (one-to-one, one-to-many, many-to-many) with appropriate foreign keys and cascading rules (`onDelete`, `onUpdate`).
+   - Run `npx prisma migrate dev --name "detailed_schema"` to apply changes.
+   - Create a seed script (`prisma/seed.ts`) to populate the database with initial data:
+     -   Sample admin user(s).
+     -   A few sample brands, categories, and tags.
+     -   A dozen sample products across different categories with placeholder images and specifications.
+     -   Initial compatibility relations for a few sample products to test the PC builder.
+     -   Sample navigation menus.
+   -   Execute seed: Update `package.json` with `prisma: { "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts" }` and run `npx prisma db seed`.
+   - Document the schema design choices, relationships, and the seeding process. Include an ERD diagram if possible (can be generated with tools like `prisma-erd-generator`).
+6. **Basic Utilities & Validation**
+   - Set up Zod (`zod`) schemas in `src/lib/validators/` for all data inputs:
+     -   `adminAuthSchema.ts` (login, registration).
+     -   `productSchema.ts` (creation, update, including nested compatibility).
+     -   `categorySchema.ts`, `brandSchema.ts`.
+     -   `orderSchema.ts` (for internal use if any).
+     -   `pageSchema.ts`, `bannerSchema.ts`.
+     -   Example: `export const ProductSchema = z.object({ title: z.string().min(3), price: z.number().positive(), ... });`
+   - Implement authentication utilities in `src/lib/auth.ts`:
+     -   Password hashing: `bcryptjs` (`hash`, `compare`).
+     -   JWT management: `jsonwebtoken` (`sign`, `verify`). Store JWTs in httpOnly cookies for security.
+     -   Functions for `login`, `logout`, `getAdminUserFromRequest`.
+   - Add global error handling utilities in `src/lib/errors.ts` or use Next.js built-in mechanisms:
+     -   Custom error classes (e.g., `AuthenticationError`, `ValidationError`, `NotFoundError`).
+     -   A global error boundary component (`src/app/global-error.tsx`) for the App Router.
+     -   Consistent error responses for API routes (e.g., `{ success: false, error: "message", details: {} }`).
+   - Document all utility functions, Zod schemas, and the overall error handling strategy.
+7. **Test Foundation**
+   - Run the development server: `npm run dev`.
+   - Verify basic Next.js app routes work (e.g., homepage `/`, a sample API route).
+   - Run type checks: `npm run typecheck` (add to `package.json`: `"typecheck": "tsc --noEmit"`).
+   - Run linting and formatting: `npm run lint` (ESLint), `npm run format` (Prettier - add scripts to `package.json`).
+   - Open Prisma Studio: `npx prisma studio`. Verify database connection, inspect tables, and confirm seed data is present and correct.
+   - Test basic database operations via a temporary test script or API endpoint (e.g., create, read, update, delete a sample entity).
+   - Document all test steps, expected results, and common troubleshooting tips for foundation setup.

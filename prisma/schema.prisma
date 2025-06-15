@@ -1,0 +1,471 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Admin User Model
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      AdminRole @default(ADMIN)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_users")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+// Category Model
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?   @db.Text
+  image       String?
+  specificationTemplate String? @db.LongText // JSON string for specification fields
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // New fields for SEO
+  seoTitle     String?
+  seoDescription String?
+
+  // Relations
+  products    Product[]
+  subcategories Category[] @relation("CategoryHierarchy")
+  parentCategory Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  parentId    String?
+
+  @@map("categories")
+}
+
+// Brand Model
+model Brand {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?   @db.Text
+  logo        String?
+  website     String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  products    Product[]
+
+  @@map("brands")
+}
+
+// Product Model
+model Product {
+  id              String        @id @default(cuid())
+  name            String
+  slug            String        @unique
+  description     String?       @db.Text
+  shortDescription String?      @db.Text
+  sku             String?       @unique
+  price           Decimal       @db.Decimal(10, 2)
+  comparePrice    Decimal?      @db.Decimal(10, 2)
+  costPrice       Decimal?      @db.Decimal(10, 2)
+  stock           Int           @default(0)
+  lowStockThreshold Int         @default(5)
+  weight          Decimal?      @db.Decimal(8, 3)
+  dimensions      String?       // JSON string for width, height, depth
+  isActive        Boolean       @default(true)
+  isFeatured      Boolean       @default(false)
+  metaTitle       String?
+  metaDescription String?       @db.Text
+  tags            String?       @db.Text // JSON array of tags
+  specifications  String?       @db.LongText // JSON object for detailed specs
+  compatibility   String?       @db.LongText // JSON object for compatibility info
+  images          String?       @db.Text // JSON array of image URLs
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  category        Category      @relation(fields: [categoryId], references: [id])
+  categoryId      String
+  brand           Brand         @relation(fields: [brandId], references: [id])
+  brandId         String
+  orderItems      OrderItem[]
+  cartItems       CartItem[]
+  buildComponents BuildComponent[]
+  shopProducts    ShopProduct[]
+
+  @@map("products")
+}
+
+// Order Model
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  status          OrderStatus @default(PENDING)
+  totalAmount     Decimal     @db.Decimal(10, 2)
+  subtotal        Decimal     @db.Decimal(10, 2)
+  taxAmount       Decimal     @db.Decimal(10, 2) @default(0)
+  shippingAmount  Decimal     @db.Decimal(10, 2) @default(0)
+  discountAmount  Decimal     @db.Decimal(10, 2) @default(0)
+  
+  // Customer Information
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  
+  // Shipping Information
+  shippingAddress String      @db.Text
+  shippingCity    String
+  shippingState   String?
+  shippingZip     String?
+  shippingCountry String      @default("Pakistan")
+  
+  // Billing Information (if different from shipping)
+  billingAddress  String?     @db.Text
+  billingCity     String?
+  billingState    String?
+  billingZip      String?
+  billingCountry  String?
+  
+  // Order Details
+  notes           String?     @db.Text
+  internalNotes   String?     @db.Text
+  paymentMethod   PaymentMethod @default(WHATSAPP)
+  paymentStatus   PaymentStatus @default(PENDING)
+  trackingNumber  String?
+  estimatedDelivery DateTime?
+  deliveredAt     DateTime?
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  WHATSAPP
+  BANK_TRANSFER
+  CASH_ON_DELIVERY
+  CREDIT_CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+// Order Item Model
+model OrderItem {
+  id          String  @id @default(cuid())
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  totalPrice  Decimal @db.Decimal(10, 2)
+  
+  // Relations
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  product     Product @relation(fields: [productId], references: [id])
+  productId   String
+
+  @@map("order_items")
+}
+
+// Cart Model (for persistent cart storage)
+model Cart {
+  id        String     @id @default(cuid())
+  sessionId String     @unique
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  items     CartItem[]
+
+  @@map("carts")
+}
+
+// Cart Item Model
+model CartItem {
+  id        String  @id @default(cuid())
+  quantity  Int
+  
+  // Relations
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+// PC Build Model (for custom PC builds)
+model PCBuild {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  totalPrice  Decimal  @db.Decimal(10, 2)
+  isPublic    Boolean  @default(false)
+  isTemplate  Boolean  @default(false)
+  sessionId   String?  // For anonymous builds
+  userId      String?  // For registered user builds (future feature)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  components  BuildComponent[]
+
+  @@map("pc_builds")
+}
+
+// Build Component Model (products in a PC build)
+model BuildComponent {
+  id           String        @id @default(cuid())
+  componentType ComponentType
+  quantity     Int           @default(1)
+  
+  // Relations
+  build        PCBuild      @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  buildId      String
+  product      Product      @relation(fields: [productId], references: [id])
+  productId    String
+  @@unique([buildId, componentType])
+  @@map("build_components")
+}
+
+// Shop Model (Collections equivalent)
+model Shop {
+  id              String      @id @default(cuid())
+  name            String      @unique
+  slug            String      @unique
+  description     String?     @db.Text
+  shortDescription String?    @db.Text
+  featuredImage   String?     // Featured image for shop listing
+  bannerImage     String?     // Banner image for shop page
+  shopType        ShopType    @default(MANUAL)
+  rules           String?     @db.LongText // JSON object for automatic shop rules
+  isActive        Boolean     @default(true)
+  isFeatured      Boolean     @default(false)
+  sortOrder       Int         @default(0)
+  
+  // SEO fields
+  seoTitle        String?
+  seoDescription  String?     @db.Text
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  shopProducts    ShopProduct[]
+
+  @@map("shops")
+}
+
+enum ShopType {
+  MANUAL      // Admin manually selects products
+  AUTOMATIC   // Products auto-added based on rules
+}
+
+// Shop Product Junction Table (Many-to-Many)
+model ShopProduct {
+  id        String   @id @default(cuid())
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  // Relations
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId    String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  @@unique([shopId, productId])
+  @@map("shop_products")
+}
+
+enum ComponentType {
+  CPU
+  MOTHERBOARD
+  RAM
+  GPU
+  STORAGE_PRIMARY
+  STORAGE_SECONDARY
+  PSU
+  CASE
+  CPU_COOLER
+  CASE_FANS
+  OPTICAL_DRIVE
+  NETWORK_CARD
+  SOUND_CARD
+  MONITOR
+  KEYBOARD
+  MOUSE
+  SPEAKERS
+  HEADSET
+  UPS
+  WEBCAM
+  OTHER
+}
+
+// Site Settings Model (for CMS configuration)
+model SiteSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String?  @db.LongText
+  type        SettingType @default(TEXT)
+  category    String   @default("general")
+  description String?  @db.Text
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+enum SettingType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  BOOLEAN
+  JSON
+  IMAGE
+  URL
+}
+
+// Newsletter Subscription Model
+model Newsletter {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  isActive    Boolean  @default(true)
+  source      String?  // Where they subscribed from
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("newsletter_subscriptions")
+}
+
+// Contact Form Submissions
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  isReplied Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contact_submissions")
+}
+
+// Navigation Menu Models
+model Menu {
+  id          String     @id @default(cuid())
+  name        String     @unique // e.g., "Main Menu", "Footer Menu"
+  handle      String     @unique // e.g., "main-menu", "footer-menu"
+  description String?
+  isActive    Boolean    @default(true)
+  location    MenuLocation @default(HEADER)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  items MenuItem[]
+
+  @@map("menus")
+}
+
+model MenuItem {
+  id          String      @id @default(cuid())
+  label       String
+  url         String?     // For external URLs or custom paths
+  linkType    LinkType    @default(CUSTOM)
+  linkValue   String?     // ID of linked resource (product, category, etc.)
+  target      String?     @default("_self") // "_self" or "_blank"
+  cssClass    String?     // Custom CSS classes
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  parentId    String?     // For nested menu items
+  menuId      String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  menu     Menu        @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parent   MenuItem?   @relation("MenuItemChildren", fields: [parentId], references: [id])
+  children MenuItem[]  @relation("MenuItemChildren")
+
+  @@map("menu_items")
+  @@index([menuId])
+  @@index([parentId])
+  @@index([sortOrder])
+}
+
+enum MenuLocation {
+  HEADER
+  FOOTER
+  SIDEBAR
+  MOBILE
+}
+
+enum LinkType {
+  CUSTOM      // Custom URL
+  PAGE        // Static page
+  CATEGORY    // Product category
+  PRODUCT     // Individual product
+  SHOP        // Shop collection
+  BRAND       // Brand page
+  HOME        // Homepage
+  CONTACT     // Contact page
+  ABOUT       // About page
+}
+
+// Analytics/Tracking Model (for internal analytics)
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  userAgent String?  @db.Text
+  ip        String?
+  referer   String?  @db.Text
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@map("page_views")
+  @@index([path])
+  @@index([createdAt])
+}

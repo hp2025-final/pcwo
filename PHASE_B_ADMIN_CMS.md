@@ -1,0 +1,812 @@
+### 👑 PHASE B: Admin CMS (Complete Second) ✅ **COMPREHENSIVE IMPLEMENTATION**
+**The Admin CMS provides a comprehensive user experience for product listing, shop/collection management, dynamic specification templates, and navigation menu management inspired by Shopify. The public website uses a single theme, with content for its predefined sections editable from this CMS.**
+
+**🎉 IMPLEMENTATION STATUS:** This phase has been significantly enhanced with advanced features including:
+- ✅ **Shop & Collection Management** - Complete Shopify-like shop system
+- ✅ **Navigation Menu Management** - Advanced menu system with multiple locations
+- ✅ **Dynamic Specification Templates** - Category-based specification management
+- ✅ **Enhanced Product Management** - Integrated with shops and specifications
+- ✅ **Comprehensive Admin Interface** - Modern, responsive admin panel
+
+1. **Admin Authentication**
+   - **UI/UX & Flow:**
+     - Design a simple, clean login page (`/admin/login`) with fields for email and password.
+     - Include a "Forgot Password" link (implement later if deemed essential, initially out of scope to keep minimal).
+     - Registration will not be public. A separate, secure mechanism or script will be used by the lead developer to create initial admin accounts or provide a one-time registration code.
+     - If using registration codes:
+       - A simple form (`/admin/register?code=UNIQUE_CODE`) for new admins to set their email and password.
+       - The registration code should be single-use and expire.
+   - **Security & Session Management:**
+     - Implement secure password hashing using bcrypt (or Argon2).
+     - Use JSON Web Tokens (JWT) for managing sessions.
+       - JWT Payload: `userId`, `email`, `role: 'admin'`, `exp` (expiration time).
+       - Store JWT in an `httpOnly`, `secure` (in production), `SameSite=Strict` cookie.
+       - Set a reasonable token expiration (e.g., 1-8 hours) and implement session re-validation or silent refresh if longer sessions are needed (consider complexity vs. security).
+     - Protect all `/admin/*` routes using middleware that verifies the JWT.
+     - Implement rate limiting on login and registration attempts to prevent brute-force attacks.
+     - Ensure all input is validated and sanitized.
+   - **API Endpoints (Example):**
+     - `POST /api/admin/auth/login`: Accepts email and password, returns JWT in cookie upon success.
+     - `POST /api/admin/auth/register`: (If using codes) Accepts email, password, registration code. Creates admin user.
+     - `POST /api/admin/auth/logout`: Clears the session cookie.
+     - `GET /api/admin/auth/me`: Returns current authenticated admin user details (useful for UI).
+   - **Data Models:**
+     - `AdminUser` Schema:
+       - `_id`: ObjectId
+       - `email`: String, unique, required
+       - `passwordHash`: String, required
+       - `registrationCodeUsed`: String (if applicable)
+       - `isActive`: Boolean, default: true
+       - `createdAt`: Date
+       - `updatedAt`: Date
+     - `RegistrationCode` Schema (if applicable):
+       - `_id`: ObjectId
+       - `code`: String, unique, required
+       - `isUsed`: Boolean, default: false
+       - `expiresAt`: Date
+       - `createdAt`: Date
+   - **Documentation:**
+     - Document the authentication flow, including registration code process (if any).
+     - Detail JWT structure, storage, and security measures (hashing, cookie settings).
+     - Outline API endpoints for authentication.
+     - Specify admin user data model.
+2. **Admin Dashboard**
+   - **UI/UX & Content:**
+     - Design a main dashboard page (`/admin/dashboard`) accessible after login.
+     - **Key Metrics Display:**
+       - Use clear "Stat Cards" for:
+         - Total Sales (e.g., "PKR 150,000 this month")
+         - Total Orders (e.g., "25 new orders this week")
+         - Products in Stock (e.g., "1200 items")
+         - Low Stock Alerts (e.g., "5 products low in stock")
+     - **Visualizations (Shopify-like):**
+       - Sales Over Time: Line chart showing daily/weekly/monthly sales revenue.
+       - Recent Orders: A small table or list showing the last 5-10 orders with key details (Order ID, Customer, Total, Status).
+       - Top Selling Products: Bar chart or list.
+     - **Quick Links/Actions:**
+       - Buttons or prominent links to: "Add New Product", "View All Orders", "Manage Categories", "Site Settings".
+   - **Data Sources & Aggregation:**
+     - Metrics will require aggregation queries on `Orders` and `Products` collections.
+     - Consider caching dashboard data for performance if queries are heavy, with a refresh mechanism.
+   - **API Endpoints (Example):**
+     - `GET /api/admin/dashboard/summary-stats`: Returns data for stat cards.
+     - `GET /api/admin/dashboard/sales-chart`: Returns data formatted for the sales chart.
+     - `GET /api/admin/dashboard/recent-orders`: Returns list of recent orders.
+     - `GET /api/admin/dashboard/low-stock-products`: Returns list of products below a certain stock threshold.
+   - **Documentation:**
+     - Document each dashboard widget, its purpose, and the data it displays.
+     - Specify the API endpoints used to populate the dashboard.
+     - Explain any data aggregation logic or caching strategies.
+3. **Product Management**
+   - **UI/UX & Flow (Product List View - `/admin/products`):**
+     - Shopify-like table display: Product Image Thumbnail, Product Name, Status (Active/Draft), Inventory (Stock Quantity), Type (Category), Vendor (Brand).
+     - **Search & Filtering:**
+       - Search bar for product name, SKU.
+       - Filters for: Status, Category, Brand, Stock Status (In stock, Low stock, Out of stock).
+     - **Bulk Actions:** Checkboxes for selecting multiple products. Actions: Activate, Deactivate, Delete, Add to Category, Remove from Category, Add Tags, Remove Tags.
+     - Pagination for long lists of products.
+     - "Add Product" button linking to the product creation form.
+     - Each product row has "Edit" and "Delete" actions.
+   - **UI/UX & Flow (Product Create/Edit Form - `/admin/products/new`, `/admin/products/:id/edit`):**
+     - **Main Information Section:**
+       - `Title`: Text input.
+       - `Description`: Rich Text Editor (WYSIWYG) for detailed product descriptions.
+       - `SKU (Stock Keeping Unit)`: Text input, unique.
+       - `Barcode (ISBN, UPC, GTIN, etc.)`: Optional text input.
+     - **Pricing Section:**
+       - `Price`: Number input.
+       - `Compare at price`: Optional number input (for showing discounts).
+       - `Cost per item`: Optional number input (for profit calculation, admin-only visibility).
+     - **Inventory Section:**
+       - `Track quantity`: Checkbox.
+       - `Quantity`: Number input (available stock).
+       - `Allow backorders`: Checkbox (if quantity is zero).
+     - **Shipping Section (Simplified for PCWV2 - primarily for weight/dimensions if needed locally):**
+       - `Weight`: Number input (e.g., kg).
+       - `Dimensions (L x W x H)`: Optional inputs.
+     - **Organization Section:**
+       - `Status`: Dropdown (Active, Draft).
+       - `Brand`: Select dropdown (from managed Brands).
+       - `Category`: Select dropdown (from managed Categories - for collections).
+       - `Tags`: Tag input field (comma-separated or tokenized input - for collections).
+     - **Media Section:**
+       - Image uploader: Drag-and-drop and file selection for multiple product images. Ability to reorder images. Indicate primary image.
+     - **Variants (Simplified/Optional - consider if essential for PC parts initially):**
+       - If variants are needed (e.g., RAM with different speeds, SSDs with different capacities but same model line):
+         - Option to define variant attributes (e.g., "Size", "Color", "Speed").
+         - Table to manage each variant's SKU, Price, Quantity, Image.
+       - *Initial Scope: May defer complex variant management unless critical for core PC parts.* Focus on individual product listings first.
+     - **Compatibility Management Section (Crucial for PC Builder):**
+       - This section appears when editing a product that is a PC component (e.g., CPU, GPU, Motherboard, RAM, PSU, Cooler, Storage, Case).
+       - For a selected component (e.g., a specific CPU model like "Intel Core i5-13600K"):
+         - Display multi-select dropdowns or searchable lists for *other* component types it's compatible with.
+         - Example: If editing a CPU:
+           - `Compatible Motherboards`: Multi-select list of all `Motherboard` products.
+           - `Compatible RAM Types`: (e.g., DDR4, DDR5 - this might be a product attribute rather than direct product link, or link to RAM type categories).
+           - `Compatible Coolers`: Multi-select list of `CPU Cooler` products.
+         - Example: If editing a Motherboard:
+           - `Compatible CPUs`: Multi-select list of `CPU` products.
+           - `Compatible RAM Modules`: Multi-select list of `RAM` products (matching RAM type, e.g., DDR5).
+           - `Compatible GPUs`: Multi-select list of `GPU` products.
+           - `Compatible Cases`: Multi-select list of `Case` products (form factor match).
+           - `Compatible PSUs`: Multi-select list of `PSU` products.
+           - `Compatible Storage`: Multi-select list of `Storage` products (M.2, SATA SSDs, HDDs).
+       - The selection should allow searching/filtering within the dropdowns for easier management.
+       - This data directly populates the compatibility rules for the public PC Builder.
+     - **SEO Section:**
+       - `Page title`: Text input (for `<title>` tag).
+       - `Meta description`: Textarea (for `<meta name="description">`).
+       - `URL slug`: Text input (auto-generated from title, editable).
+     - Save, Save & Continue Editing, Cancel buttons.
+   - **API Endpoints (Example):**
+     - `GET /api/admin/products`: List products with pagination, search, filtering.
+     - `POST /api/admin/products`: Create a new product.
+     - `GET /api/admin/products/:id`: Get a single product by ID.
+     - `PUT /api/admin/products/:id`: Update a product by ID.
+     - `DELETE /api/admin/products/:id`: Delete a product by ID.
+     - `POST /api/admin/products/bulk-actions`: Perform bulk actions (activate, delete, etc.).
+     - `GET /api/admin/products/compatible-components?type=<component_type>`: Fetch list of components of a certain type for compatibility selection (e.g., all motherboards).
+   - **Data Models:**
+     - `Product` Schema:
+       - `_id`: ObjectId
+       - `title`: String, required
+       - `slug`: String, unique, required (for URL)
+       - `description`: String
+       - `sku`: String, unique, required
+       - `barcode`: String
+       - `price`: Number, required
+       - `compareAtPrice`: Number
+       - `costPerItem`: Number (admin only)
+       - `trackQuantity`: Boolean, default: true
+       - `quantity`: Number, default: 0
+       - `allowBackorders`: Boolean, default: false
+       - `status`: Enum ('Active', 'Draft'), default: 'Draft'
+       - `brandId`: ObjectId, ref: 'Brand'
+       - `categoryId`: ObjectId, ref: 'Category'
+       - `tags`: [String]
+       - `images`: [{ url: String, altText: String, isPrimary: Boolean }]
+       - `weight`: Number
+       - `dimensions`: { length: Number, width: Number, height: Number }
+       - `seo`: { pageTitle: String, metaDescription: String }
+       - `isFeatured`: Boolean, default: false
+       - `componentType`: Enum (e.g., 'CPU', 'GPU', 'Motherboard', 'RAM', 'PSU', 'Cooler', 'Storage', 'Case', 'Other') - *Crucial for PC Builder & Compatibility*
+       - `compatibility`: Map (flexible structure based on `componentType`)
+         - Example for a CPU:
+           - `compatibleMotherboardIds`: [ObjectId], ref: 'Product' (where `componentType` is 'Motherboard')
+           - `compatibleRamTypes`: [String] (e.g., ['DDR4', 'DDR5'])
+         - Example for a Motherboard:
+           - `compatibleCpuIds`: [ObjectId], ref: 'Product' (where `componentType` is 'CPU')
+           - `compatibleRamModuleIds`: [ObjectId], ref: 'Product' (where `componentType` is 'RAM')
+           - `socket`: String (e.g. 'AM4', 'LGA1700')
+           - `chipset`: String
+           - `formFactor`: String (e.g. 'ATX', 'Micro-ATX')
+           - `ramType`: String (e.g. 'DDR4', 'DDR5')
+           - `maxRamSpeed`: Number
+           - `m2Slots`: Number
+           - `sataPorts`: Number
+       - `specifications`: Map (key-value pairs for general product specs, e.g., `{"Clock Speed": "3.5GHz", "Cores": "6"}`)
+       - `createdAt`: Date
+       - `updatedAt`: Date
+     - *Note on `compatibility`*: This needs careful design. It might involve storing direct product IDs or references to categories/tags that define compatibility groups. The goal is to make it manageable for admins and efficient for the PC builder logic.
+   - **Product Data Scraper (Experimental):**
+     - **UI/UX:**
+       - A dedicated page (`/admin/scraper`) or a section within Product Management.
+       - Input field for `Product URL`.
+       - Dropdown to select `Target Site Parser` (if multiple are developed, e.g., "Galaxy.pk Parser", "CZC.cz Parser"). Initially, only one or two might be available.
+       - "Scrape Product Data" button.
+       - Display area for scraped results (title, price, description, image URLs, specs) with clear labels of what was found.
+       - Option to "Load into New Product Form". This would take the scraped data and pre-fill the `/admin/products/new` form.
+       - Clear disclaimers about accuracy, ethical use, and potential for breakage.
+     - **Backend Logic:**
+       - API endpoint like `POST /api/admin/scraper/scrape-url`.
+       - Receives URL and target site identifier.
+       - Uses a server-side HTTP client to fetch the page content.
+       - Selects the appropriate parser based on the target site.
+       - Parser (e.g., using Cheerio.js or a similar library if Node.js backend, or Python's BeautifulSoup if Python backend) attempts to extract data based on predefined CSS selectors or HTML structure patterns for that specific site.
+       - Returns structured JSON of scraped data or an error message.
+     - **Error Handling & Logging:**
+       - Log all scraping attempts (URL, success/failure, errors).
+       - Provide user-friendly error messages (e.g., "Could not fetch URL", "Parser failed for this site structure", "Website blocked request").
+     - **Dependencies:**
+       - Server-side HTTP client (e.g., `axios` for Node.js, `requests` for Python).
+       - HTML parsing library (e.g., `cheerio` for Node.js, `BeautifulSoup` for Python). This is an *additional dependency* and needs to be justified against the minimal dependency policy. Given the experimental nature and high value, it might be acceptable.
+     - **Documentation:**
+       - Detailed instructions on how to use the scraper.
+       - List of currently supported websites and the reliability of their parsers.
+       - Troubleshooting common issues.
+       - Strong emphasis on ethical considerations and respecting `robots.txt`.
+       - How to request support for a new website (which would involve new parser development).
+   - **Documentation:**
+     - Document the entire product creation and management workflow.
+     - Detail all fields in the product form, especially `componentType` and the `compatibility` section structure and its importance for the PC Builder.
+     - Explain how categories and tags contribute to product organization and collections.
+     - Provide examples of API usage for product CRUD.
+     - Specify the `Product` data model in detail.
+4. **Category & Brand Management**
+   - **UI/UX & Flow (`/admin/categories`, `/admin/brands`):**
+     - Separate sections for managing Categories and Brands.
+     - **List View (for both Categories and Brands):**
+       - Table display: Name, Slug, Description (optional), Product Count (number of products associated).
+       - For Categories: display Parent Category if applicable (for hierarchy).
+       - Search bar for Name.
+       - "Add New Category/Brand" button.
+       - Actions per item: Edit, Delete.
+     - **Create/Edit Form (for both Categories and Brands - `/admin/categories/new`, `/admin/brands/:id/edit` etc.):**
+       - `Name`: Text input, required.
+       - `Slug`: Text input, auto-generated from name, editable, unique.
+       - `Description`: Optional Rich Text Editor.
+       - For Categories: `Parent Category`: Dropdown to select an existing category (allows for nesting, e.g., Components > CPU).
+       - `Image/Thumbnail`: Optional image uploader (for category/brand landing pages if the theme supports it).
+       - **SEO Section:**
+         - `Page title`: Text input.
+         - `Meta description`: Textarea.
+   - **Functionality:**
+     - Categories are primarily used for creating collections (e.g., "Gaming CPUs", "Office Laptops"). Products can belong to one primary category.
+     - Brands are for manufacturer/vendor information.
+     - Deleting a category/brand should prompt for re-assigning its products or unsetting the category/brand from them.
+   - **API Endpoints (Example - similar for Brands):**
+     - `GET /api/admin/categories`: List all categories.
+     - `POST /api/admin/categories`: Create a new category.
+     - `GET /api/admin/categories/:id`: Get a single category.
+     - `PUT /api/admin/categories/:id`: Update a category.
+     - `DELETE /api/admin/categories/:id`: Delete a category.
+   - **Data Models:**
+     - `Category` Schema:
+       - `_id`: ObjectId
+       - `name`: String, required
+       - `slug`: String, unique, required
+       - `description`: String
+       - `parentId`: ObjectId, ref: 'Category' (optional, for hierarchy)
+       - `image`: { url: String, altText: String }
+       - `seo`: { pageTitle: String, metaDescription: String }
+       - `createdAt`: Date
+       - `updatedAt`: Date
+     - `Brand` Schema:
+       - `_id`: ObjectId
+       - `name`: String, required
+       - `slug`: String, unique, required
+       - `description`: String
+       - `logoUrl`: String
+       - `seo`: { pageTitle: String, metaDescription: String }
+       - `createdAt`: Date
+       - `updatedAt`: Date   - **Documentation:**
+     - Explain how to create, edit, and delete categories and brands.
+     - Detail the purpose of categories (collections) and brands.
+     - Document the hierarchical structure for categories.
+     - Specify API endpoints and data models.
+
+4.5. **Dynamic Specification Templates** ✅ **IMPLEMENTED**
+   - **UI/UX & Flow (`/admin/categories/:id/specifications`):**
+     - **Template Management Interface:**
+       - Category-specific specification templates with visual field management.
+       - Add/Edit/Delete specification fields with real-time preview.
+       - Field type selection: TEXT, NUMBER, BOOLEAN, SELECT, MULTISELECT, RANGE.
+       - Field validation rules and requirements configuration.
+       - Drag-and-drop field reordering with visual feedback.
+       - Template inheritance from parent categories.
+     - **Field Configuration:**
+       - **Basic Properties:**
+         - `Name`: Display name for the specification field.
+         - `Key`: Unique identifier for API and database storage.
+         - `Type`: Field type with appropriate input controls.
+         - `Description`: Help text for admins and users.
+         - `Required`: Mandatory field validation.
+       - **Advanced Settings:**
+         - `Default Value`: Pre-populated values for new products.
+         - `Validation Rules`: Min/max values, regex patterns, allowed options.
+         - `Display Options`: Show/hide in listings, filters, comparisons.
+         - `Units`: Measurement units for numeric fields (GB, MHz, etc.).
+       - **Select/Multiselect Options:**
+         - Dynamic option management with add/remove functionality.
+         - Option value and display label configuration.
+         - Default selection and sorting options.
+     - **Template Preview & Testing:**
+       - Live preview of specification form as it appears in product creation.
+       - Test data input and validation rules.
+       - Export/import template configurations for backup.
+   - **Product Integration:**
+     - **Dynamic Form Generation:**
+       - Product forms automatically adapt based on category selection.
+       - Real-time field addition/removal when category changes.
+       - Specification data validation against template rules.
+       - Bulk specification updates across multiple products.
+     - **Search & Filter Integration:**
+       - Automatic filter generation from specification templates.
+       - Range filters for numeric specifications.
+       - Multi-select filters for categorical specifications.
+       - Advanced search with specification-based queries.
+   - **Technical Implementation:**
+     - **Template Engine:**
+       - JSON-based template storage with schema validation.
+       - Flexible field type system with extensible architecture.
+       - Efficient template inheritance and override mechanisms.
+       - Real-time template compilation and caching.
+     - **Database Schema:**
+       - Specification templates stored as JSON documents.
+       - Product specifications stored with type validation.
+       - Indexing for fast specification-based queries.
+       - Migration tools for template changes.
+   - **API Endpoints:**
+     - `GET /api/admin/categories/:id/specifications`: Get category template.
+     - `PUT /api/admin/categories/:id/specifications`: Update template.
+     - `GET /api/admin/specifications/templates`: List all templates.
+     - `POST /api/admin/specifications/validate`: Validate specification data.
+   - **Data Models:**
+     - `SpecificationTemplate` (Embedded in Category):
+       - `fields`: Array of field definitions
+       - `version`: Template version for migration tracking
+       - `inheritedFrom`: Parent category template reference
+       - `updatedAt`: Last modification timestamp
+     - `SpecificationField`:
+       - `name`: String, required
+       - `key`: String, unique within template
+       - `type`: Enum (TEXT, NUMBER, BOOLEAN, SELECT, MULTISELECT, RANGE)
+       - `required`: Boolean, default: false
+       - `description`: String
+       - `validation`: Object with type-specific rules
+       - `options`: Array (for SELECT/MULTISELECT types)
+       - `defaultValue`: Mixed type based on field type
+       - `displayOptions`: Object for UI configuration
+   - **Advanced Features:**
+     - **Template Inheritance:** Child categories inherit and extend parent templates.
+     - **Bulk Operations:** Apply template changes to existing products.
+     - **Version Control:** Track template changes with rollback capability.
+     - **Import/Export:** Share templates between categories or systems.
+     - **Validation Engine:** Comprehensive data validation with custom rules.
+   - **Documentation:**
+     - Complete guide to creating and managing specification templates.
+     - Field type reference with validation options.
+     - Template inheritance and override strategies.
+     - Integration examples for product management.
+     - Performance optimization for large product catalogs.
+
+5. **Order Management**
+   - **UI/UX & Flow (`/admin/orders`):**
+     - **Order List View:**
+       - Table display: Order ID (clickable to view details), Date, Customer Name/WhatsApp Number, Total Amount, Payment Status (e.g., Pending Confirmation, Confirmed, Shipped, Delivered, Cancelled), Order Status (e.g., Processing, Awaiting Payment).
+       - **Search & Filtering:**
+         - Search by Order ID, Customer Name/Number.
+         - Filters for: Order Status, Payment Status, Date Range.
+       - Bulk actions (e.g., Change Status, Export Selected).
+       - Pagination.
+     - **Order Detail View (`/admin/orders/:id`):**
+       - **Order Information:** Order ID, Date, Status, Payment Status.
+       - **Customer Information:** Name, WhatsApp number, (optional: Email, Shipping Address if collected, though primary is WhatsApp).
+       - **Items Ordered:** List of products (Image, Name, SKU, Quantity, Price per unit, Total price for line item).
+       - **Order Totals:** Subtotal, Shipping (if any), Discounts (if any), Grand Total.
+       - **Order History/Notes:** Timeline of status changes, internal notes added by admin.
+       - **Actions:**
+         - Update Order Status (dropdown).
+         - Update Payment Status (dropdown).
+         - Add Internal Note.
+         - "View WhatsApp Chat" (if a direct link can be constructed or deep-link is possible, otherwise just display number).
+         - Resend Order Confirmation (if applicable, though WhatsApp is primary).
+   - **WhatsApp Order Tracking:**
+     - Since checkout is via WhatsApp, the initial order creation might be manual or semi-automated if a WhatsApp Business API integration is considered later (out of scope for initial minimal setup).
+     - For manual: Admin receives WhatsApp message, then creates the order in the CMS.
+     - The `Order` model should store the customer's WhatsApp number as the primary identifier.
+   - **API Endpoints (Example):**
+     - `GET /api/admin/orders`: List orders with pagination, search, filtering.
+     - `POST /api/admin/orders`: Create a new order (primarily for manual entry from WhatsApp).
+     - `GET /api/admin/orders/:id`: Get a single order by ID.
+     - `PUT /api/admin/orders/:id`: Update an order (status, notes, etc.).
+     - `GET /api/admin/orders/export`: Export orders to CSV/Excel (filtered or all).
+   - **Data Models:**
+     - `Order` Schema:
+       - `_id`: ObjectId
+       - `orderNumber`: String, unique, human-readable (e.g., PCWV2-1001)
+       - `customerWhatsapp`: String, required
+       - `customerName`: String (optional, can be extracted from WhatsApp or entered by admin)
+       - `items`: [
+         {
+           `productId`: ObjectId, ref: 'Product',
+           `productName`: String, // Denormalized for easy display
+           `sku`: String, // Denormalized
+           `quantity`: Number,
+           `pricePerUnit`: Number, // Price at the time of order
+           `totalPrice`: Number
+         }
+       ]
+       - `subtotal`: Number
+       - `shippingCost`: Number, default: 0
+       - `discountAmount`: Number, default: 0
+       - `grandTotal`: Number, required
+       - `orderStatus`: Enum ('Pending Confirmation', 'Processing', 'Awaiting Shipment', 'Shipped', 'Delivered', 'Cancelled', 'Refunded'), default: 'Pending Confirmation'
+       - `paymentStatus`: Enum ('Pending', 'Paid', 'Failed', 'Refunded'), default: 'Pending'
+       - `paymentMethod`: String (e.g., 'Bank Transfer via WhatsApp', 'Cash on Delivery via WhatsApp')
+       - `internalNotes`: [{ note: String, adminId: ObjectId, ref: 'AdminUser', timestamp: Date }]
+       - `createdAt`: Date
+       - `updatedAt`: Date
+   - **Documentation:**     - Document the order management workflow, from receiving a WhatsApp order to fulfillment.
+     - Explain how to search, filter, and view order details.
+     - Detail how to update order and payment statuses.
+     - Specify API endpoints and the `Order` data model.
+
+5. **Shop & Collection Management** ✅ **IMPLEMENTED**
+   - **UI/UX & Flow (`/admin/shops`):**
+     - **Shop List View:**
+       - Table display with Shop Name, Slug, Status (Active/Inactive), Product Count, Created Date.
+       - Search functionality by name or slug.
+       - Filter by status (Active, Inactive, All).
+       - Bulk actions: Activate, Deactivate, Delete selected shops.
+       - Pagination for large shop lists.
+       - "Add New Shop" button with prominent placement.
+       - Actions per shop: Edit, Delete, View Products, Toggle Status.
+     - **Shop Create/Edit Form (`/admin/shops/new`, `/admin/shops/:id/edit`):**
+       - **Basic Information Section:**
+         - `Name`: Text input, required (e.g., "Gaming Rigs", "Budget Builds").
+         - `Slug`: Auto-generated from name, editable, unique (e.g., "gaming-rigs").
+         - `Description`: Rich Text Editor for detailed shop description.
+         - `Short Description`: Brief summary for listings and cards.
+       - **Visual Content Section:**
+         - `Featured Image`: Primary shop image uploader with preview.
+         - `Gallery Images`: Multiple image uploader for shop showcase.
+         - `Banner Image`: Optional banner for shop header.
+       - **Settings Section:**
+         - `Status`: Dropdown (Active, Inactive).
+         - `Featured Shop`: Checkbox to highlight shop on homepage.
+         - `Sort Order`: Number input for custom ordering.
+       - **SEO Section:**
+         - `Meta Title`: Custom page title for SEO.
+         - `Meta Description`: SEO description for search engines.
+         - `SEO Keywords`: Comma-separated keywords.
+       - **Product Association:**
+         - Multi-select product picker with search functionality.
+         - Visual product cards showing image, name, price, and stock status.
+         - Bulk product actions: Add to shop, Remove from shop.
+         - Product filtering by category, brand, and status.
+   - **Public Shop Pages (`/shops`, `/shop/:slug`):**
+     - **Shop Listing Page (`/shops`):**
+       - Grid/List view toggle for shop display.
+       - Shop cards with featured image, name, description, and product count.
+       - Filter sidebar: Status, Featured shops, Product categories.
+       - Search functionality across shop names and descriptions.
+       - Pagination and sorting options (Name, Date, Product Count).
+     - **Individual Shop Page (`/shop/:slug`):**
+       - Shop header with banner, name, and full description.
+       - Product grid with filtering and sorting capabilities.
+       - Related shops suggestions.
+       - Breadcrumb navigation and SEO optimization.
+   - **Functionality:**
+     - Shops serve as curated collections of products (e.g., "Gaming Setups", "Office Solutions").
+     - Products can belong to multiple shops simultaneously.
+     - Shop status controls public visibility and search indexing.
+     - Featured shops can be highlighted on homepage and shop listing.
+     - Complete SEO support for shop pages with custom meta tags.
+   - **API Endpoints:**
+     - `GET /api/admin/shops`: List all shops with pagination and filtering.
+     - `POST /api/admin/shops`: Create a new shop.
+     - `GET /api/admin/shops/:id`: Get single shop with products.
+     - `PUT /api/admin/shops/:id`: Update shop information.
+     - `DELETE /api/admin/shops/:id`: Delete shop (with product reassignment).
+     - `PUT /api/admin/shops/:id/products`: Update shop-product associations.
+     - `GET /api/shops`: Public API for shop listing with filters.
+     - `GET /api/shops/:slug`: Public API for individual shop data.
+   - **Data Models:**
+     - `Shop` Schema:
+       - `_id`: ObjectId
+       - `name`: String, required
+       - `slug`: String, unique, required
+       - `description`: String (Rich Text)
+       - `shortDescription`: String
+       - `featuredImage`: String (URL)
+       - `galleryImages`: [String] (Array of URLs)
+       - `bannerImage`: String (URL)
+       - `isActive`: Boolean, default: true
+       - `isFeatured`: Boolean, default: false
+       - `sortOrder`: Number, default: 0
+       - `seo`: {
+         `metaTitle`: String,
+         `metaDescription`: String,
+         `keywords`: String
+       }
+       - `createdAt`: Date
+       - `updatedAt`: Date
+     - `ShopProduct` Junction Table:
+       - `shopId`: ObjectId, ref: 'Shop'
+       - `productId`: ObjectId, ref: 'Product'
+       - `sortOrder`: Number, default: 0
+       - `createdAt`: Date
+   - **Integration Features:**
+     - Dashboard widget showing shop statistics and performance.
+     - Navigation integration with dynamic shop links.
+     - Product management integration (assign products to shops from product edit page).
+     - SEO optimization with proper meta tags and structured data.
+   - **Documentation:**
+     - Complete shop creation and management workflow.
+     - Product association and bulk management procedures.
+     - Public shop page customization and SEO best practices.
+     - API usage examples and integration guidelines.
+
+6. **Navigation Menu Management System** ✅ **IMPLEMENTED**
+   - **UI/UX & Flow (`/admin/menus`):**
+     - **Menu List View:**
+       - Comprehensive table display: Menu Name, Handle, Location, Item Count, Status, Created Date.
+       - Advanced search functionality by name and handle.
+       - Filter by location (Header, Footer, Sidebar, Mobile) and status.
+       - Bulk operations: Activate, Deactivate, Delete, Export menus.
+       - Location-based color coding for visual organization.
+       - Actions per menu: Edit, Manage Items, Preview, Delete.
+     - **Menu Create/Edit Form (`/admin/menus/new`, `/admin/menus/:id`):**
+       - **Basic Information Section:**
+         - `Name`: Display name (e.g., "Main Menu", "Footer Links").
+         - `Handle`: Unique identifier, auto-generated, editable (e.g., "main-menu").
+         - `Description`: Optional description for menu purpose.
+       - **Settings Section:**
+         - `Location`: Dropdown (HEADER, FOOTER, SIDEBAR, MOBILE).
+         - `Active Status`: Toggle for menu visibility.
+       - **Menu Item Management Interface (`/admin/menus/:id/items`):**
+         - Hierarchical display of menu items with visual nesting.
+         - Drag-and-drop reordering (visual feedback for future enhancement).
+         - Add/Edit/Delete menu items with modal forms.
+         - Real-time status toggling for individual items.
+         - Parent-child relationship management for nested menus.
+     - **Menu Item Configuration:**
+       - **Link Types with Auto-Resolution:**
+         - `HOME`: Automatic link to homepage (/).
+         - `CONTACT`: Automatic link to contact page (/contact).
+         - `ABOUT`: Automatic link to about page (/about).
+         - `CATEGORY`: Links to product category pages (/category/{slug}).
+         - `PRODUCT`: Links to individual product pages (/product/{slug}).
+         - `SHOP`: Links to shop collection pages (/shop/{slug}).
+         - `BRAND`: Links to brand pages (/brand/{slug}).
+         - `PAGE`: Links to static CMS pages (/{slug}).
+         - `CUSTOM`: User-defined URLs (internal or external).
+       - **Menu Item Properties:**
+         - `Label`: Display text for the menu item.
+         - `Link Value`: ID or slug for typed links (auto-resolved to URLs).
+         - `Custom URL`: For CUSTOM link type.
+         - `Target`: Window behavior (_self, _blank).
+         - `CSS Class`: Custom styling classes.
+         - `Sort Order`: Positioning within menu.
+         - `Parent Item`: For creating nested/dropdown menus.
+         - `Active Status`: Show/hide individual items.
+     - **Menu Preview System (`/admin/menus/:id/preview`):**
+       - Live preview in multiple render modes (Horizontal, Vertical, Dropdown).
+       - Location-specific preview layouts (Header, Footer, Sidebar, Mobile).
+       - Real-time URL resolution testing.
+       - All render modes comparison view.
+   - **Frontend Integration:**
+     - **Menu Component (`<Menu />`):**
+       - Flexible rendering modes: `horizontal`, `vertical`, `dropdown`.
+       - Automatic URL resolution based on link types.
+       - Nested menu support with dropdown functionality.
+       - Customizable styling through className props.
+       - Graceful fallback to static navigation if API fails.
+     - **Mobile Menu Component (`<MobileMenu />`):**
+       - Touch-optimized slide-out navigation.
+       - Overlay background with smooth animations.
+       - Integration with main menu system.
+       - Responsive design for all device sizes.
+     - **Layout Integration:**
+       - Header navigation uses "main-menu" handle.
+       - Footer navigation uses "footer-menu" handle.
+       - Mobile navigation uses "mobile-menu" handle.
+       - Sidebar navigation uses "sidebar-menu" handle.
+   - **Technical Implementation:**
+     - **URL Resolution System:**
+       - Automatic URL generation based on link types and values.
+       - Centralized URL mapping for consistent routing.
+       - Support for both internal and external links.
+     - **Hierarchical Structure:**
+       - Unlimited nesting levels through parent-child relationships.
+       - Efficient tree building algorithms for menu rendering.
+       - Proper sort ordering with drag-and-drop support.
+     - **Caching and Performance:**
+       - Component-level caching for menu data.
+       - Efficient database queries with proper indexing.
+       - Minimal re-renders with React optimization.
+   - **API Endpoints:**
+     - **Admin APIs:**
+       - `GET/POST /api/admin/menus`: Menu CRUD operations with filtering.
+       - `GET/PUT/DELETE /api/admin/menus/:id`: Individual menu management.
+       - `GET/POST/PUT /api/admin/menus/:id/items`: Menu items management.
+       - `GET/PUT/DELETE /api/admin/menus/:id/items/:itemId`: Individual item operations.
+     - **Public APIs:**
+       - `GET /api/menus`: Public menu consumption with location/handle filtering.
+       - `GET /api/menus?handle=main-menu`: Specific menu retrieval.
+       - `GET /api/menus?location=HEADER`: Location-based menu filtering.
+   - **Data Models:**
+     - `Menu` Schema:
+       - `_id`: ObjectId
+       - `name`: String, unique, required
+       - `handle`: String, unique, required (e.g., "main-menu")
+       - `description`: String
+       - `location`: Enum (HEADER, FOOTER, SIDEBAR, MOBILE)
+       - `isActive`: Boolean, default: true
+       - `createdAt`: Date
+       - `updatedAt`: Date
+     - `MenuItem` Schema:
+       - `_id`: ObjectId
+       - `label`: String, required
+       - `url`: String (for custom URLs)
+       - `linkType`: Enum (CUSTOM, PAGE, CATEGORY, PRODUCT, SHOP, BRAND, HOME, CONTACT, ABOUT)
+       - `linkValue`: String (ID/slug for typed links)
+       - `target`: String, default: "_self"
+       - `cssClass`: String
+       - `isActive`: Boolean, default: true
+       - `sortOrder`: Number, default: 0
+       - `parentId`: ObjectId, ref: 'MenuItem' (for nesting)
+       - `menuId`: ObjectId, ref: 'Menu'
+       - `createdAt`: Date
+       - `updatedAt`: Date
+   - **Advanced Features:**
+     - **Menu Templates:** Pre-built menu structures for quick setup.
+     - **Bulk Operations:** Import/export menus, batch item management.
+     - **Menu Analytics:** Track click-through rates and user engagement.
+     - **A/B Testing:** Multiple menu variations for optimization.
+     - **Conditional Display:** Show/hide based on user roles or conditions.
+   - **Documentation:**
+     - Complete menu creation and management workflow.
+     - Link type reference and URL resolution examples.
+     - Frontend component usage and customization guide.
+     - API integration examples and best practices.
+     - Menu optimization and performance guidelines.
+
+7. **CMS & Content**
+   - **UI/UX & Flow:**
+     - **Homepage & Theme Section Management (`/admin/cms/theme-content`):**
+       - A dedicated area to manage content for the *single, fixed public theme*.
+       - The theme will have predefined editable sections (e.g., "Hero Banner", "Featured Products Carousel 1", "Promotional Block A", "Testimonials Section").
+       - For each editable section, the CMS will provide specific fields:
+         - Example for "Hero Banner":
+           - `Headline`: Text input.
+           - `Sub-headline`: Text input.
+           - `Background Image`: Image uploader.
+           - `Call to Action Text`: Text input (e.g., "Shop Now").
+           - `Call to Action Link`: URL input (can be internal page link or external).
+         - Example for "Featured Products Carousel":
+           - `Section Title`: Text input (e.g., "Top Deals").
+           - `Products`: Multi-select product picker (search and select products to feature).
+           - `Display Style`: (If theme supports variations, e.g., "Grid", "Slider").
+       - Clear visual separation for managing each theme section.
+       - "Save Theme Content" button.
+     - **Banner Management (`/admin/cms/banners` - can be part of Theme Section Management if banners are tied to specific theme slots):**
+       - If banners are more dynamic or used in multiple places beyond fixed theme slots:
+         - List view: Banner Name, Image, Status (Active/Inactive), Start/End Date, Position.
+         - Create/Edit form:
+           - `Name`: Text input.
+           - `Image`: Image uploader.
+           - `Link URL`: URL input.
+           - `Alt Text`: Text input.
+           - `Status`: Dropdown (Active, Inactive).
+           - `Schedule (Optional)`: Start Date, End Date.
+           - `Position/Target Area`: Dropdown if there are predefined banner slots (e.g., "Homepage Top", "Sidebar Ad").
+     - **Static Page Management (`/admin/cms/pages`):**
+       - List view: Page Title, Slug, Status (Published/Draft), Last Modified.
+       - "Add New Page" button.
+       - Create/Edit form (`/admin/cms/pages/new`, `/admin/cms/pages/:id/edit`):
+         - `Title`: Text input.
+         - `Content`: Rich Text Editor (WYSIWYG) for the main body of the page (e.g., About Us, Contact Us, Privacy Policy).
+         - `Slug`: Auto-generated, editable.
+         - `Status`: Dropdown (Published, Draft).
+         - **SEO Section:** `Page title`, `Meta description`.
+     - **Media Library (`/admin/cms/media`):**
+       - Grid or list view of all uploaded images and files.
+       - Uploader with drag-and-drop support.
+       - Ability to view image thumbnails, file names, upload dates, sizes.
+       - Basic actions: Delete media. (Advanced: edit alt text, captions if used directly).
+       - Search/filter by name or type.     - **Menu/Navigation Management:** ✅ **IMPLEMENTED - See Section 6**
+       - Complete Shopify-like interface for managing menus implemented.
+       - Advanced menu system with multiple locations and link types.
+       - Hierarchical menu structure with unlimited nesting.
+       - Live preview functionality and multiple render modes.
+       - Full integration with public layouts and mobile navigation.
+       - **Reference:** See "Navigation Menu Management System" section above for complete implementation details.
+   - **API Endpoints (Example):**
+     - `GET /api/admin/cms/theme-content`: Get current theme content data.
+     - `PUT /api/admin/cms/theme-content`: Update theme content data.
+     - `GET /api/admin/cms/pages`: List static pages.
+     - `POST /api/admin/cms/pages`: Create a static page.
+     - `GET /api/admin/cms/pages/:id`: Get a single static page.
+     - `PUT /api/admin/cms/pages/:id`: Update a static page.
+     - `DELETE /api/admin/cms/pages/:id`: Delete a static page.
+     - `GET /api/admin/cms/media`: List media files.
+     - `POST /api/admin/cms/media`: Upload media file(s).
+     - `DELETE /api/admin/cms/media/:id`: Delete a media file.
+     - `GET /api/admin/cms/navigation`: Get all menus.
+     - `PUT /api/admin/cms/navigation/:menuId`: Update a specific menu structure.
+   - **Data Models:**
+     - `ThemeContent` Schema (likely a single document or a structured set of documents):
+       - `heroBanner`: { headline: String, subHeadline: String, imageUrl: String, ctaText: String, ctaLink: String }
+       - `featuredProductsSection1`: { title: String, productIds: [ObjectId], displayStyle: String }
+       - ... (other predefined theme sections)
+       - `updatedAt`: Date
+     - `StaticPage` Schema:
+       - `_id`: ObjectId
+       - `title`: String, required
+       - `slug`: String, unique, required
+       - `content`: String (HTML from WYSIWYG)
+       - `status`: Enum ('Published', 'Draft'), default: 'Draft'
+       - `seo`: { pageTitle: String, metaDescription: String }
+       - `createdAt`: Date
+       - `updatedAt`: Date
+     - `MediaFile` Schema:
+       - `_id`: ObjectId
+       - `fileName`: String
+       - `url`: String (path to file)
+       - `altText`: String
+       - `fileType`: String (e.g., 'image/jpeg', 'application/pdf')
+       - `size`: Number (bytes)
+       - `uploadedBy`: ObjectId, ref: 'AdminUser'
+       - `createdAt`: Date     - `NavigationMenu` Schema: ✅ **IMPLEMENTED - See Section 6 for Complete Schema**
+       - Comprehensive menu system with Menu and MenuItem models implemented.
+       - Support for multiple locations (HEADER, FOOTER, SIDEBAR, MOBILE).
+       - Advanced link types: HOME, CONTACT, ABOUT, CATEGORY, PRODUCT, SHOP, BRAND, PAGE, CUSTOM.
+       - Hierarchical structure with unlimited nesting through parent-child relationships.
+       - **Reference:** See "Navigation Menu Management System" section above for complete data models.
+   - **Documentation:**
+     - Document how to manage content for each predefined section of the public theme.
+     - Explain static page creation and editing.
+     - Detail media library usage.
+     - Provide instructions for managing site navigation menus.
+     - Specify API endpoints and data models for all CMS features.
+7. **Admin Settings**
+   - **UI/UX & Flow (`/admin/settings`):**
+     - A settings area, possibly with sub-sections (General, SEO, Integrations, Backup).
+     - **General Settings (`/admin/settings/general`):**
+       - `Site Name`: Text input (e.g., "PC Wala Online V2").
+       - `Site Logo`: Image uploader.
+       - `Favicon`: Image uploader.
+       - `Admin Email`: Email for notifications (e.g., low stock alerts, if implemented).
+       - `Public Contact Email`: Displayed on site.
+       - `Public Contact Phone/WhatsApp`: Displayed on site.
+       - `Physical Address`: Optional, for display.
+       - `Currency`: Dropdown (e.g., PKR, USD - though PKR is primary).
+       - `Timezone`: Dropdown.
+     - **SEO Settings (`/admin/settings/seo`):**
+       - `Global Meta Title Suffix`: Text input (e.g., " | PCWV2").
+       - `Default Meta Description`: Textarea for homepage/fallback.
+       - `Default Meta Keywords`: Text input (less critical now, but can include).
+       - `robots.txt Content`: Textarea to directly edit `robots.txt` rules (provide sensible defaults).
+       - `Sitemap Generation`: Button to trigger sitemap generation (`/sitemap.xml`).
+     - **Integrations / Analytics & Ads (`/admin/settings/integrations`):**
+       - `Google Tag Manager (GTM) Container ID`: Text input (e.g., "GTM-XXXXXX").
+       - `Meta Pixel ID`: Text input.
+       - Clear instructions or links to documentation on where to find these IDs.
+     - **Backup/Export (`/admin/settings/backup`):**
+       - `Download Database Backup`: Button to trigger a database dump (e.g., MongoDB dump) and download.
+       - `Download Media Library Backup`: Button to trigger a ZIP archive of all uploaded media and download.
+       - Display last backup date/time.
+       - Considerations for storage of backups if automated (out of scope for manual download).
+     - Save button for each settings section.
+   - **Functionality:**
+     - Settings are stored and retrieved to configure various aspects of the admin and public site.
+     - GTM and Meta Pixel IDs will be used to inject the respective tracking scripts into the public website's theme.
+     - Sitemap generation should create an XML sitemap compatible with search engines.
+     - Backup functionality provides a way for admins to secure their data.
+   - **API Endpoints (Example):**
+     - `GET /api/admin/settings`: Get all current settings.
+     - `PUT /api/admin/settings`: Update settings (can be one endpoint taking a nested settings object, or separate endpoints per section).
+     - `POST /api/admin/settings/generate-sitemap`: Trigger sitemap generation.
+     - `GET /api/admin/settings/backup/database`: Initiate database backup download.
+     - `GET /api/admin/settings/backup/media`: Initiate media library backup download.
+   - **Data Models:**
+     - `Settings` Schema (likely a single document in a dedicated collection):
+       - `siteName`: String
+       - `siteLogoUrl`: String
+       - `faviconUrl`: String
+       - `adminEmail`: String
+       - `publicContactEmail`: String
+       - `publicContactPhone`: String
+       - `physicalAddress`: String
+       - `currency`: String, default: "PKR"
+       - `timezone`: String, default: "Asia/Karachi"
+       - `seo`: {
+         `globalMetaTitleSuffix`: String,
+         `defaultMetaDescription`: String,
+         `defaultMetaKeywords`: String,
+         `robotsTxtContent`: String
+       }
+       - `integrations`: {
+         `gtmContainerId`: String,
+         `metaPixelId`: String
+       }
+       - `lastDatabaseBackup`: Date
+       - `lastMediaBackup`: Date
+       - `updatedAt`: Date
+   - **Documentation:**
+     - Document each setting, its purpose, and how it affects the site.
+     - Explain how to configure GTM and Meta Pixel IDs and verify their integration.
+     - Provide instructions for sitemap generation and data backups.
+     - Specify API endpoints and the `Settings` data model.
